@@ -66,11 +66,12 @@ wflw_arima
 # * Nested Modeltime Table
 nested_modeltime_tbl <- nested_data_tbl %>%
     modeltime_nested_fit(
-        wflw_arima,
+        # wflw_arima,
         wflw_xgb
     )
 
-object.size(nested_modeltime_tbl)
+attributes(nested_modeltime_tbl)
+attr(nested_modeltime_tbl, "id")
 
 nested_modeltime_tbl %>%
     modeltime_nested_accuracy()
