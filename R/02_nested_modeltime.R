@@ -29,8 +29,10 @@ modeltime_nested_fit <- function(nested_data, ...,
     }
 
     # ERRORS ----
-    err_env <- rlang::env(
+    table_env <- rlang::env(
+        acc_tbl    = tibble(),
         error_list = list()
+
     )
 
     # LOOP LOGIC ----
@@ -48,8 +50,8 @@ modeltime_nested_fit <- function(nested_data, ...,
 
                         ret <- model_list %>%
                             imap(.f = function (mod, i) {
-                                # Use this to test a model failure:
-                                if (i == 1 && id == "1_1") stop("Model failed")
+                                # Use this to simulate a model failure:
+                                # if (i == 1 && id == "1_1") stop("Model failed")
                                 fit(mod, data = training(x))
                             }) %>%
                             as_modeltime_table()
@@ -57,6 +59,11 @@ modeltime_nested_fit <- function(nested_data, ...,
                         if (calibrate) {
                             ret <- ret %>%
                                 modeltime_calibrate(testing(x))
+
+                            acc_tbl <- modeltime_accuracy(ret) %>%
+                                add_column(!! id_text := id, .before = 1)
+
+                            table_env$acc_tbl <- bind_rows(table_env$acc_tbl, acc_tbl)
                         }
 
                     } else {
@@ -81,7 +88,7 @@ modeltime_nested_fit <- function(nested_data, ...,
                         error_code = as.character(e)
                     )
 
-                    err_env$error_list <- list(err_env$error_list, error_tbl)
+                    table_env$error_list <- append(table_env$error_list, error_tbl)
 
                     ret <- NULL
 
@@ -97,8 +104,9 @@ modeltime_nested_fit <- function(nested_data, ...,
 
     # error_tbl <- bind_rows(error_list)
 
-    attr(nested_modeltime, "id") <- id_text
-    attr(nested_modeltime, "error_tbl") <- err_env$error_list %>% bind_rows()
+    attr(nested_modeltime, "id")           <- id_text
+    attr(nested_modeltime, "error_tbl")    <- table_env$error_list %>% bind_rows()
+    attr(nested_modeltime, "accuracy_tbl") <- table_env$acc_tbl
 
     return(nested_modeltime)
 
