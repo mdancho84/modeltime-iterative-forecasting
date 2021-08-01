@@ -8,7 +8,7 @@ library(modeltime)
 library(tidyverse)
 
 source("R/01_data_prep.R")
-
+source("R/02_nested_modeltime.R")
 
 # DATA PREP FUNCTIONS ----
 
@@ -62,6 +62,7 @@ wflw_arima <- workflow() %>%
 wflw_arima
 
 # * Bad Model ----
+#   - Xgboost can't handle dates
 
 recipe_bad <- recipe(value ~ ., training(nested_data_tbl$.splits[[1]]))
 
@@ -78,15 +79,14 @@ nested_modeltime_tbl <- nested_data_tbl %>%
     modeltime_nested_fit(
         wflw_arima,
         wflw_xgb,
-        wflw_bad
+        # wflw_bad,
+        control = control_nested_fit(verbose = FALSE)
     )
 
 nested_modeltime_tbl
 
 attributes(nested_modeltime_tbl)
-attr(nested_modeltime_tbl, "id")
-attr(nested_modeltime_tbl, "error_tbl")
-attr(nested_modeltime_tbl, "accuracy_tbl")
 
-nested_modeltime_tbl %>%
-    modeltime_nested_accuracy()
+nested_modeltime_tbl %>% modeltime_nested_accuracy()
+
+nested_modeltime_tbl %>% modeltime_nested_error_report()
