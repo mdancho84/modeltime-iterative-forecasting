@@ -61,13 +61,24 @@ wflw_arima <- workflow() %>%
 
 wflw_arima
 
+# * Bad Model ----
+
+recipe_bad <- recipe(value ~ ., training(nested_data_tbl$.splits[[1]]))
+
+wflw_bad <- workflow() %>%
+    add_model(boost_tree()) %>%
+    add_recipe(recipe_arima)
+
+wflw_bad
+
 # ITERATIVE WORKFLOW ----
 
 # * Nested Modeltime Table
 nested_modeltime_tbl <- nested_data_tbl %>%
     modeltime_nested_fit(
         wflw_arima,
-        wflw_xgb
+        wflw_xgb,
+        wflw_bad
     )
 
 nested_modeltime_tbl

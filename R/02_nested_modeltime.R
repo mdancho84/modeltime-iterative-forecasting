@@ -46,15 +46,24 @@ modeltime_nested_fit <- function(nested_data, ...,
 
                     model_list <- list(...)
 
+                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = FALSE)
+
                     if (fit_type != "actual") {
 
-                        ret <- model_list %>%
+                        .l <- model_list %>%
                             imap(.f = function (mod, i) {
                                 # Use this to simulate a model failure:
                                 # if (i == 1 && id == "1_1") stop("Model failed")
-                                fit(mod, data = training(x))
-                            }) %>%
-                            as_modeltime_table()
+                                safe_fit(mod, data = training(x)) %>% pluck("result")
+                            })
+
+                        ret <- tibble::tibble(
+                            .model = .l
+                        ) %>%
+                            tibble::rowid_to_column(var = ".model_id") %>%
+                            dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
+
+                        class(ret) <- c("mdl_time_tbl", class(ret))
 
                         if (calibrate) {
                             ret <- ret %>%
@@ -67,11 +76,19 @@ modeltime_nested_fit <- function(nested_data, ...,
                         }
 
                     } else {
-                        ret <- model_list %>%
+
+                        .l <- model_list %>%
                             imap(.f = function (mod, i) {
-                                fit(mod, data = x)
-                            }) %>%
-                            as_modeltime_table()
+                                safe_fit(mod, data = x) %>% pluck("result")
+                            })
+
+                        ret <- tibble::tibble(
+                            .model = .l
+                        ) %>%
+                            tibble::rowid_to_column(var = ".model_id") %>%
+                            dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
+
+                        class(ret) <- c("mdl_time_tbl", class(ret))
                     }
 
                     cli::cli_alert_success(str_glue("Finished Modeltime Table: ID {id}"))
@@ -101,8 +118,6 @@ modeltime_nested_fit <- function(nested_data, ...,
     # STRUCTURE ----
 
     class(nested_modeltime) <- c("nested_mdl_time", class(nested_modeltime))
-
-    # error_tbl <- bind_rows(error_list)
 
     attr(nested_modeltime, "id")           <- id_text
     attr(nested_modeltime, "error_tbl")    <- table_env$error_tbl
