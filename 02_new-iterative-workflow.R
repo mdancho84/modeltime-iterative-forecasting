@@ -79,7 +79,7 @@ nested_modeltime_tbl <- nested_data_tbl %>%
     modeltime_nested_fit(
         wflw_arima,
         wflw_xgb,
-        # wflw_bad,
+        wflw_bad,
         control = control_nested_fit(verbose = FALSE)
     )
 
@@ -90,3 +90,8 @@ attributes(nested_modeltime_tbl)
 nested_modeltime_tbl %>% modeltime_nested_accuracy()
 
 nested_modeltime_tbl %>% modeltime_nested_error_report()
+
+nested_modeltime_tbl %>%
+    modeltime_nested_forecast() %>%
+    group_by(id) %>%
+    plot_modeltime_forecast()

@@ -1,14 +1,16 @@
 
 # NOTES ----
-# * What about parsnip models? ----
+# * What about parsnip models? Thinking we should enforce workflows ----
 # * What about workflowsets? See modeltime_fit_workflowset() ----
-# * Will the Nested Modeltime Table get too big? https://diskframe.com/index.html ----
+# * Will the Nested Modeltime Table get too big? Is there a way to use Disk.frame for >> RAM ----
+# *
 
 # MODELTIME NESTED FIT ----
 # - Fits on training / accuracy on testing
 
 modeltime_nested_fit <- function(nested_data, ...,
-                                 calibrate = TRUE,
+                                 metric_set = default_forecast_accuracy_metric_set(),
+                                 conf_interval = 0.95,
                                  control = control_nested_fit()) {
 
     # CHECKS ----
@@ -25,11 +27,13 @@ modeltime_nested_fit <- function(nested_data, ...,
 
     x_expr <- sym(".splits")
 
+    d_expr <- sym(".actual_data")
 
 
     # SETUP LOGGING ENV ----
     logging_env <- rlang::env(
         acc_tbl   = tibble(),
+        fcast_tbl = tibble(),
         error_tbl = tibble()
 
     )
@@ -42,11 +46,9 @@ modeltime_nested_fit <- function(nested_data, ...,
 
     nested_modeltime <- nested_data %>%
         mutate(
-            .modeltime_tables = pmap(.l = list(x = !! x_expr, id = !! id_expr), .f = function(x, id) {
+            .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, id = !! id_expr), .f = function(x, d, id) {
 
                 tryCatch({
-
-
 
                     if (control$verbose) cli::cli_alert_info(str_glue("Starting Modeltime Table: ID {id}..."))
 
@@ -91,20 +93,33 @@ modeltime_nested_fit <- function(nested_data, ...,
 
                     class(ret) <- c("mdl_time_tbl", class(ret))
 
-                    # Calibrate & Accuracy ----
-                    if (calibrate) {
+                    # Calibration ----
+                    suppressWarnings({
+                        ret <- ret %>%
+                            modeltime_calibrate(testing(x))
+                    })
 
-                        suppressWarnings({
-                            ret <- ret %>%
-                                modeltime_calibrate(testing(x))
-                        })
+                    # Accuracy ----
+                    acc_tbl <- modeltime_accuracy(ret, metric_set = metric_set) %>%
+                        add_column(!! id_text := id, .before = 1)
 
-                        acc_tbl <- modeltime_accuracy(ret) %>%
+                    logging_env$acc_tbl <- bind_rows(logging_env$acc_tbl, acc_tbl)
+
+                    # Test Forecast ----
+                    suppressMessages({
+                        fcast_tbl <- modeltime_forecast(
+                            object        = ret,
+                            new_data      = testing(x),
+                            actual_data   = d,
+                            conf_interval = conf_interval
+                        ) %>%
                             add_column(!! id_text := id, .before = 1)
 
-                        logging_env$acc_tbl <- bind_rows(logging_env$acc_tbl, acc_tbl)
-                    }
+                        logging_env$fcast_tbl <- bind_rows(logging_env$fcast_tbl, fcast_tbl)
 
+                    })
+
+                    # Finish ----
 
                     if (control$verbose) cli::cli_alert_success(str_glue("Finished Modeltime Table: ID {id}"))
                     if (control$verbose) cat("\n")
@@ -138,16 +153,15 @@ modeltime_nested_fit <- function(nested_data, ...,
 
     class(nested_modeltime) <- c("nested_mdl_time", class(nested_modeltime))
 
-    attr(nested_modeltime, "id")           <- id_text
-    attr(nested_modeltime, "error_tbl")    <- logging_env$error_tbl %>% drop_na()
-    attr(nested_modeltime, "accuracy_tbl") <- logging_env$acc_tbl
-
+    attr(nested_modeltime, "id")                <- id_text
+    attr(nested_modeltime, "error_tbl")         <- logging_env$error_tbl %>% drop_na()
+    attr(nested_modeltime, "accuracy_tbl")      <- logging_env$acc_tbl
+    attr(nested_modeltime, "test_forecast_tbl") <- logging_env$fcast_tbl
 
 
     if (nrow(attr(nested_modeltime, "error_tbl")) > 0) {
-        rlang::warn("Some models had errors during fitting. Run `modeltime_nested_error_report(object)` to review errors.")
+        rlang::warn("Some models had errors during fitting. Use `modeltime_nested_error_report()` to review errors.")
     }
-
 
 
     return(nested_modeltime)
@@ -232,43 +246,10 @@ modeltime_nested_accuracy <- function(object) {
     attr(object, "accuracy_tbl")
 }
 
+modeltime_nested_test_forecast <- function(object) {
+    attr(object, "test_forecast_tbl")
+}
+
 modeltime_nested_error_report <- function(object) {
     attr(object, "error_tbl")
 }
-
-# NESTED FORECAST ----
-
-# function(object) {
-#
-#     object %>%
-#         mutate(
-#             forecast_tables = pmap(list(.modeltime_tables, .splits, .actual_data, ), .f = function(x, r, d, i) {
-#
-#                 tryCatch({
-#                     # cli::cli_alert_info(str_glue("Starting Accuracy: ID {i}..."))
-#
-#                     ret <- modeltime_forecast(
-#                         object      = x,
-#                         new_data    = testing(r),
-#                         actual_data = d
-#                     )
-#
-#                     # cli::cli_alert_success(str_glue("Finished Modeltime Table: ID {id}"))
-#                     # cat("\n")
-#
-#                 }, error = function(e) {
-#
-#                     cli::cli_alert_danger(str_glue("Modeltime Forecast (Failed): ID {i}"))
-#                     cat("\n")
-#
-#                     ret <- NULL
-#
-#                 })
-#
-#                 return(ret)
-#
-#             })
-#         )
-#
-# }
-#
