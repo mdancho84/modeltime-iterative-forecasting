@@ -30,8 +30,8 @@ modeltime_nested_fit <- function(nested_data, ...,
 
     # ERRORS ----
     table_env <- rlang::env(
-        acc_tbl    = tibble(),
-        error_list = list()
+        acc_tbl   = tibble(),
+        error_tbl = tibble()
 
     )
 
@@ -88,7 +88,7 @@ modeltime_nested_fit <- function(nested_data, ...,
                         error_code = as.character(e)
                     )
 
-                    table_env$error_list <- append(table_env$error_list, error_tbl)
+                    table_env$error_tbl <- bind_rows(table_env$error_tbl, error_tbl)
 
                     ret <- NULL
 
@@ -105,7 +105,7 @@ modeltime_nested_fit <- function(nested_data, ...,
     # error_tbl <- bind_rows(error_list)
 
     attr(nested_modeltime, "id")           <- id_text
-    attr(nested_modeltime, "error_tbl")    <- table_env$error_list %>% bind_rows()
+    attr(nested_modeltime, "error_tbl")    <- table_env$error_tbl
     attr(nested_modeltime, "accuracy_tbl") <- table_env$acc_tbl
 
     return(nested_modeltime)
@@ -118,6 +118,8 @@ print.nested_mdl_time <- function(x, ...) {
     class(x) <- class(x)[!(class(x) %in% c("nested_mdl_time"))]
     print(x, ...)
 }
+
+
 
 
 # NESTED ACCURACY ----
