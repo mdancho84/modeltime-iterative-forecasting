@@ -26,6 +26,8 @@ modeltime_nested_fit <- function(nested_data, ...,
 
     id_expr <- sym(id_text)
 
+    n_ids   <- nrow(nested_data)
+
     x_expr <- sym(".splits")
 
     d_expr <- sym(".actual_data")
@@ -46,30 +48,27 @@ modeltime_nested_fit <- function(nested_data, ...,
     # LOOP LOGIC ----
 
     nested_modeltime <- nested_data %>%
+        rowid_to_column(var = '..rowid') %>%
         mutate(
-            .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, id = !! id_expr), .f = function(x, d, id) {
+            .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, id = !! id_expr, i = ..rowid), .f = function(x, d, id, i) {
 
                 tryCatch({
 
-                    if (control$verbose) cli::cli_alert_info(str_glue("Starting Modeltime Table: ID {id}..."))
+                    if (control$verbose) cli::cli_alert_info(str_glue("[{i}/{n_ids}] Starting Modeltime Table: ID {id}..."))
 
                     model_list <- list(...)
 
-                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = !control$verbose)
+                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = TRUE)
 
                     # Safe fitting for each workflow in model_list ----
                     .l <- model_list %>%
                         imap(.f = function (mod, i) {
 
-                            if (!control$verbose) {
-                                suppressMessages({
-                                    suppressWarnings({
-                                        fit_list <- safe_fit(mod, data = training(x))
-                                    })
+                            suppressMessages({
+                                suppressWarnings({
+                                    fit_list <- safe_fit(mod, data = training(x))
                                 })
-                            } else {
-                                fit_list <- safe_fit(mod, data = training(x))
-                            }
+                            })
 
                             res <- fit_list %>% pluck("result")
 
@@ -81,6 +80,15 @@ modeltime_nested_fit <- function(nested_data, ...,
                                 .model_desc = get_model_description(res),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
+
+                            if (control$verbose) {
+                                if (!is.null(err)) {
+                                    cli::cli_alert_danger("Model {i} Failed {error_tbl$.model_desc}: {err}")
+                                } else {
+                                    cli::cli_alert_success("Model {i} Passed {error_tbl$.model_desc}.")
+                                }
+                            }
+
 
                             logging_env$error_tbl <- bind_rows(logging_env$error_tbl, error_tbl)
 
@@ -128,7 +136,7 @@ modeltime_nested_fit <- function(nested_data, ...,
 
                     # Finish ----
 
-                    if (control$verbose) cli::cli_alert_success(str_glue("Finished Modeltime Table: ID {id}"))
+                    if (control$verbose) cli::cli_alert_success(str_glue("[{i}/{n_ids}] Finished Modeltime Table: ID {id}"))
                     if (control$verbose) cat("\n")
 
                 }, error = function(e) {
@@ -154,7 +162,8 @@ modeltime_nested_fit <- function(nested_data, ...,
 
                 return(ret)
             })
-        )
+        ) %>%
+        select(-..rowid)
 
     if (!control$verbose) cli::cli_progress_done(.envir = logging_env)
 
@@ -376,12 +385,14 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
     # HANDLE INPUTS ----
 
-    object <- object %>%
-        select(1, ".actual_data", ".future_data", ".splits", ".modeltime_tables")
+    id_text <- attr(object, "id")
 
-    id_text <- names(object)[[1]]
+    object <- object %>%
+        select(id_text, ".actual_data", ".future_data", ".splits", ".modeltime_tables")
 
     id_expr <- sym(id_text)
+
+    n_ids   <- nrow(object)
 
     x_expr <- sym(".modeltime_tables")
 
@@ -404,8 +415,9 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
     # LOOP LOGIC ----
 
     nested_modeltime <- object %>%
+        rowid_to_column(var = '..rowid') %>%
         mutate(
-            .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, f = !! f_expr, id = !! id_expr), .f = function(x, d, f, id) {
+            .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, f = !! f_expr, id = !! id_expr, i = ..rowid), .f = function(x, d, f, id, i) {
 
                 # Save current model descriptions
                 model_desc_user_vec          <- x$.model_desc
@@ -415,25 +427,21 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
                 tryCatch({
 
-                    if (control$verbose) cli::cli_alert_info(str_glue("Starting Modeltime Table: ID {id}..."))
+                    if (control$verbose) cli::cli_alert_info(str_glue("[{i}/{n_ids}] Starting Modeltime Table: ID {id}..."))
 
                     model_list <- x$.model
 
-                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = !control$verbose)
+                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = TRUE)
 
                     # Safe fitting for each workflow in model_list ----
                     .l <- model_list %>%
                         imap(.f = function (mod, i) {
 
-                            if (!control$verbose) {
-                                suppressMessages({
-                                    suppressWarnings({
-                                        fit_list <- safe_fit(mod, data = d)
-                                    })
+                            suppressMessages({
+                                suppressWarnings({
+                                    fit_list <- safe_fit(mod, data = d)
                                 })
-                            } else {
-                                fit_list <- safe_fit(mod, data = training(x))
-                            }
+                            })
 
                             res <- fit_list %>% pluck("result")
 
@@ -445,6 +453,15 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
                                 .model_desc = get_model_description(res),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
+
+                            if (control$verbose) {
+                                if (!is.null(err)) {
+                                    cli::cli_alert_danger("Model {i} Failed {error_tbl$.model_desc}: {err}")
+                                } else {
+                                    cli::cli_alert_success("Model {i} Passed {error_tbl$.model_desc}.")
+                                }
+                            }
+
 
                             logging_env$error_tbl <- bind_rows(logging_env$error_tbl, error_tbl)
 
@@ -497,7 +514,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
                     # Finish ----
 
-                    if (control$verbose) cli::cli_alert_success(str_glue("Finished Modeltime Table: ID {id}"))
+                    if (control$verbose) cli::cli_alert_success(str_glue("[{i}/{n_ids}] Finished Modeltime Table: ID {id}"))
                     if (control$verbose) cat("\n")
 
                 }, error = function(e) {
@@ -523,7 +540,8 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
                 return(ret)
             })
-        )
+        ) %>%
+        select(-..rowid)
 
     if (!control$verbose) cli::cli_progress_done(.envir = logging_env)
 

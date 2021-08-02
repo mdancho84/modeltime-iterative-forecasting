@@ -8,7 +8,8 @@
 # * Speed:
 #   - Our solution has speed limitations
 #   - We can parallelize to make faster, evenly distributing workload by time series ID
-# * What about parsnip models? Thinking we should enforce workflows ----
+# * What about parsnip models?  ----
+#   - Thinking we should enforce workflows
 
 
 library(tidymodels)
@@ -90,7 +91,7 @@ wflw_bad
 # * Prophet ----
 
 wflw_prophet <- workflow() %>%
-    add_model(prophet_reg()) %>%
+    add_model(prophet_reg(seasonality_yearly = TRUE)) %>%
     add_recipe(recipe_arima)
 
 # NESTED WORKFLOW ----
@@ -100,10 +101,10 @@ wflw_prophet <- workflow() %>%
 nested_modeltime_tbl <- nested_data_tbl %>%
     modeltime_nested_fit(
         wflw_arima,
-        wflw_xgb_fit,
-        wflw_bad,
+        wflw_xgb_fit, # FITTED WORKS
+        wflw_bad,     # BAD MODEL RESULTS IN ERROR LOGGING
         wflw_prophet,
-        control = control_nested_fit(verbose = FALSE)
+        control = control_nested_fit(verbose = TRUE)
     )
 
 nested_modeltime_tbl
@@ -120,7 +121,7 @@ nested_modeltime_tbl %>% modeltime_nested_accuracy()
 nested_modeltime_tbl %>% modeltime_nested_error_report()
 
 nested_modeltime_tbl %>%
-    modeltime_nested_forecast() %>%
+    modeltime_nested_test_forecast() %>%
     group_by(id) %>%
     plot_modeltime_forecast(
         .facet_ncol = 2
@@ -150,9 +151,8 @@ best_nested_modeltime_tbl %>%
 
 # REFIT / FUTURE FORECAST ----
 
-
 nested_modeltime_refit_tbl <- best_nested_modeltime_tbl %>%
-    modeltime_nested_refit()
+    modeltime_nested_refit(control = control_nested_refit(verbose = FALSE))
 
 attributes(nested_modeltime_refit_tbl)
 
