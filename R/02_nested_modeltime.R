@@ -100,7 +100,11 @@ modeltime_nested_fit <- function(nested_data, ...,
                         .model = .l
                     ) %>%
                         tibble::rowid_to_column(var = ".model_id") %>%
-                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
+                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description)) %>%
+
+                        # Simplify Naming
+                        mutate(.model_desc = gsub("[[:punct:][:digit:][:cntrl:]]", "", .model_desc)) %>%
+                        mutate(.model_desc = gsub(" WITH.*$", "", .model_desc))
 
                     class(ret) <- c("mdl_time_tbl", class(ret))
 
@@ -420,8 +424,8 @@ modeltime_nested_refit <- function(object, conf_interval = 0.95, control = contr
             .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, f = !! f_expr, id = !! id_expr, i = ..rowid), .f = function(x, d, f, id, i) {
 
                 # Save current model descriptions
-                model_desc_user_vec          <- x$.model_desc
-                model_desc_modeltime_old_vec <- x$.model %>% purrr::map_chr(get_model_description)
+                # model_desc_user_vec          <- x$.model_desc
+                # model_desc_modeltime_old_vec <- x$.model %>% purrr::map_chr(get_model_description)
 
                 ..model_id <- x$.model_id
 
@@ -474,7 +478,11 @@ modeltime_nested_refit <- function(object, conf_interval = 0.95, control = contr
                         .model = .l
                     ) %>%
                         mutate(.model_id = ..model_id) %>%
-                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
+                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description)) %>%
+
+                        # Simplify Naming
+                        mutate(.model_desc = gsub("[[:punct:][:digit:][:cntrl:]]", "", .model_desc)) %>%
+                        mutate(.model_desc = gsub(" WITH.*$", "", .model_desc))
 
                     # Add calibration
                     ret <- ret %>%
@@ -483,25 +491,24 @@ modeltime_nested_refit <- function(object, conf_interval = 0.95, control = contr
                     # Update class
                     class(ret) <- c("mdl_time_tbl", class(ret))
 
-                    # Update Model Descriptions
-                    ret <- ret %>%
-                        dplyr::mutate(.model_desc_user = model_desc_user_vec) %>%
-                        dplyr::mutate(.model_desc_old  = model_desc_modeltime_old_vec) %>%
-                        dplyr::mutate(.model_desc_new  = purrr::map_chr(.model, .f = get_model_description)) %>%
-
-                        # Description Logic
-                        dplyr::mutate(.model_desc = ifelse(
-                            .model_desc_old == .model_desc_new,
-                            # TRUE - Let User Choice Alone
-                            .model_desc_user,
-                            # FALSE - Model Algorithm Parameters Have Changed
-                            # - Reflect Updated Model Params in Description
-                            paste0("UPDATE: ", .model_desc_new)
-                            )
-                        ) %>%
-
-                        # Clean up columns
-                        dplyr::select(-.model_desc_user, -.model_desc_old, -.model_desc_new)
+                    # ret <- ret %>%
+                    #     dplyr::mutate(.model_desc_user = model_desc_user_vec) %>%
+                    #     dplyr::mutate(.model_desc_old  = model_desc_modeltime_old_vec) %>%
+                    #     dplyr::mutate(.model_desc_new  = purrr::map_chr(.model, .f = get_model_description)) %>%
+                    #
+                    #     # Description Logic
+                    #     dplyr::mutate(.model_desc = ifelse(
+                    #         .model_desc_old == .model_desc_new,
+                    #         # TRUE - Let User Choice Alone
+                    #         .model_desc_user,
+                    #         # FALSE - Model Algorithm Parameters Have Changed
+                    #         # - Reflect Updated Model Params in Description
+                    #         paste0("UPDATE: ", .model_desc_new)
+                    #         )
+                    #     ) %>%
+                    #
+                    #     # Clean up columns
+                    #     dplyr::select(-.model_desc_user, -.model_desc_old, -.model_desc_new)
 
                     # Future Forecast ----
 
