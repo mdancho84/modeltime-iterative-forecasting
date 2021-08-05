@@ -373,7 +373,7 @@ modeltime_nested_select_best <- function(object, metric = "rmse", minimize = TRU
 
 # NESTED REFIT ----
 
-modeltime_nested_refit <- function(object, control = control_nested_refit()) {
+modeltime_nested_refit <- function(object, conf_interval = 0.95, control = control_nested_refit()) {
 
     t1 <- Sys.time()
 
@@ -423,6 +423,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
                 model_desc_user_vec          <- x$.model_desc
                 model_desc_modeltime_old_vec <- x$.model %>% purrr::map_chr(get_model_description)
 
+                ..model_id <- x$.model_id
 
 
                 tryCatch({
@@ -449,7 +450,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
                             error_tbl <- tibble(
                                 !! id_text := id,
-                                .model_id   = i,
+                                .model_id   = ..model_id,
                                 .model_desc = get_model_description(res),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
@@ -472,9 +473,14 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
                     ret <- tibble::tibble(
                         .model = .l
                     ) %>%
-                        tibble::rowid_to_column(var = ".model_id") %>%
+                        mutate(.model_id = ..model_id) %>%
                         dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
 
+                    # Add calibration
+                    ret <- ret %>%
+                        bind_cols(x[c(".type", ".calibration_data")])
+
+                    # Update class
                     class(ret) <- c("mdl_time_tbl", class(ret))
 
                     # Update Model Descriptions
@@ -498,6 +504,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
                         dplyr::select(-.model_desc_user, -.model_desc_old, -.model_desc_new)
 
                     # Future Forecast ----
+
                     suppressMessages({
                         suppressWarnings({
                             fcast_tbl <- modeltime_forecast(
