@@ -128,8 +128,9 @@ nested_modeltime_tbl %>%
     )
 
 # * Object size can get large | Limited by RAM ----
-#   - 7 time series x 3 models = 10 MB
-#   - Realistically, we can only use for ~ 10,000 time series (10000/7 * 10 * 1e-3 = 14.3GB)
+#   - 7 time series x 4 models = 14 MB
+#   - Realistically, we can only use for ~ 10,000 time series
+#     (10000/7 * 14 * 1e-3) = 20GB
 #   - Have a good solution using Targets package
 
 object.size(nested_modeltime_tbl)

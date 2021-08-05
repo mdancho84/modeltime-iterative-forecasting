@@ -45,19 +45,26 @@ extend_timeseries <- function(.data, .id_var, .date_var, .value, .length_out) {
 
 
 
-nest_timeseries <- function(.data, .id_var, .date_var, .value) {
+nest_timeseries <- function(.data, .id_var, .length_out) {
 
     id_var_expr    <- enquo(.id_var)
-    date_var_expr  <- enquo(.date_var)
-    value_var_expr <- enquo(.value)
 
     # SPLIT FUTURE AND ACTUAL DATA
 
-    actual_data_tbl <- .data %>%
-        filter(!is.na( !!value_var_expr ))
-
     future_data_tbl <- .data %>%
-        filter(is.na( !!value_var_expr))
+        panel_tail(id = !!id_var_expr, n = .length_out)
+
+    groups <- future_data_tbl$id %>% unique() %>% length()
+
+    n_group <- .data %>%
+        group_by(!!id_var_expr) %>%
+        summarise(n = n() - (dim(future_data_tbl)[1]/groups))
+
+    actual_data_tbl <- .data %>%
+        inner_join(n_group, by = rlang::quo_name(id_var_expr)) %>%
+        group_by(!!id_var_expr) %>%
+        slice(seq(first(n))) %>%
+        ungroup()
 
 
     # CHECKS
