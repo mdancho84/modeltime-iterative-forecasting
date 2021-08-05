@@ -36,9 +36,10 @@ nested_data_tbl <- walmart_sales_weekly %>%
     # >> Can add xregs in here <<
 
     nest_timeseries(
-        .id_var   = id,
-        .date_var = date,
-        .value    = value
+        .id_var     = id,
+        # .date_var = date,
+        # .value      = value,
+        .length_out = 52
     ) %>%
 
     split_nested_timeseries(
@@ -94,16 +95,22 @@ wflw_prophet <- workflow() %>%
     add_model(prophet_reg(seasonality_yearly = TRUE)) %>%
     add_recipe(recipe_arima)
 
+fit_prophet <- prophet_reg(seasonality_yearly = TRUE) %>%
+    fit(value ~ date, data = training(nested_data_tbl$.splits[[1]]))
+
 # NESTED WORKFLOW ----
 
 # * Nested Modeltime Table
 #   - Works with
 nested_modeltime_tbl <- nested_data_tbl %>%
     modeltime_nested_fit(
-        wflw_arima,
-        wflw_xgb_fit, # FITTED WORKS
-        wflw_bad,     # BAD MODEL RESULTS IN ERROR LOGGING
-        wflw_prophet,
+        wflw_arima,   # UNFITTED WORKFLOW WORKS
+        wflw_xgb_fit, # FITTED WORKFLOW WORKS
+        wflw_bad,     # BAD MODEL - RESULTS IN ERROR LOGGING
+        # wflw_prophet, # UNFITTED WORKFLOW WORKS
+        fit_prophet,  # FITTED PARNSIP MODEL WORKS
+        prophet_reg(seasonality_yearly = TRUE), # BAD MODEL - UNFITTED PARSNIP MODEL FAILS
+
         control = control_nested_fit(verbose = TRUE)
     )
 
