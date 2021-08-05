@@ -388,7 +388,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
     id_text <- attr(object, "id")
 
     object <- object %>%
-        select(id_text, ".actual_data", ".future_data", ".splits", ".modeltime_tables")
+        select(one_of(id_text), ".actual_data", ".future_data", ".splits", ".modeltime_tables")
 
     id_expr <- sym(id_text)
 
