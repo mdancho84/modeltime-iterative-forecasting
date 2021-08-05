@@ -58,7 +58,7 @@ modeltime_nested_fit <- function(nested_data, ...,
 
                     model_list <- list(...)
 
-                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = TRUE)
+                    safe_fit <- purrr::safely(mdl_time_refit, otherwise = NULL, quiet = TRUE)
 
                     # Safe fitting for each workflow in model_list ----
                     .l <- model_list %>%
@@ -431,7 +431,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
                     model_list <- x$.model
 
-                    safe_fit <- purrr::safely(fit, otherwise = NULL, quiet = TRUE)
+                    safe_fit <- purrr::safely(mdl_time_refit, otherwise = NULL, quiet = TRUE)
 
                     # Safe fitting for each workflow in model_list ----
                     .l <- model_list %>%
