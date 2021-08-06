@@ -37,9 +37,10 @@ nested_data_tbl <- walmart_sales_weekly %>%
 
     nest_timeseries(
         .id_var     = id,
-        # .date_var = date,
-        # .value      = value,
-        .length_out = 52
+        .date_var = date,
+        .value      = value
+        # ,
+        # .length_out = 52
     ) %>%
 
     split_nested_timeseries(
