@@ -170,3 +170,4 @@ nested_modeltime_refit_tbl %>%
     plot_modeltime_forecast(
         .facet_ncol = 2
     )
+

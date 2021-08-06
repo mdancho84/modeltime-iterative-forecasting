@@ -77,7 +77,7 @@ modeltime_nested_fit <- function(nested_data, ...,
                             error_tbl <- tibble(
                                 !! id_text := id,
                                 .model_id   = i,
-                                .model_desc = get_model_description(res),
+                                .model_desc = get_model_description(mod),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
 
@@ -100,7 +100,11 @@ modeltime_nested_fit <- function(nested_data, ...,
                         .model = .l
                     ) %>%
                         tibble::rowid_to_column(var = ".model_id") %>%
-                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
+                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description)) %>%
+
+                        # Simplify Naming
+                        mutate(.model_desc = gsub("[[:punct:][:digit:][:cntrl:]]", "", .model_desc)) %>%
+                        mutate(.model_desc = gsub(" WITH.*$", "", .model_desc))
 
                     class(ret) <- c("mdl_time_tbl", class(ret))
 
@@ -373,7 +377,7 @@ modeltime_nested_select_best <- function(object, metric = "rmse", minimize = TRU
 
 # NESTED REFIT ----
 
-modeltime_nested_refit <- function(object, control = control_nested_refit()) {
+modeltime_nested_refit <- function(object, conf_interval = 0.95, control = control_nested_refit()) {
 
     t1 <- Sys.time()
 
@@ -388,7 +392,7 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
     id_text <- attr(object, "id")
 
     object <- object %>%
-        select(all_of(id_text), ".actual_data", ".future_data", ".splits", ".modeltime_tables")
+        select(one_of(id_text), ".actual_data", ".future_data", ".splits", ".modeltime_tables")
 
     id_expr <- sym(id_text)
 
@@ -420,9 +424,10 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
             .modeltime_tables = pmap(.l = list(x = !! x_expr, d = !! d_expr, f = !! f_expr, id = !! id_expr, i = ..rowid), .f = function(x, d, f, id, i) {
 
                 # Save current model descriptions
-                model_desc_user_vec          <- x$.model_desc
-                model_desc_modeltime_old_vec <- x$.model %>% purrr::map_chr(get_model_description)
+                # model_desc_user_vec          <- x$.model_desc
+                # model_desc_modeltime_old_vec <- x$.model %>% purrr::map_chr(get_model_description)
 
+                ..model_id <- x$.model_id
 
 
                 tryCatch({
@@ -449,8 +454,8 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
 
                             error_tbl <- tibble(
                                 !! id_text := id,
-                                .model_id   = i,
-                                .model_desc = get_model_description(res),
+                                .model_id   = ..model_id,
+                                .model_desc = get_model_description(mod),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
 
@@ -472,32 +477,41 @@ modeltime_nested_refit <- function(object, control = control_nested_refit()) {
                     ret <- tibble::tibble(
                         .model = .l
                     ) %>%
-                        tibble::rowid_to_column(var = ".model_id") %>%
-                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description))
+                        mutate(.model_id = ..model_id) %>%
+                        dplyr::mutate(.model_desc = purrr::map_chr(.model, .f = get_model_description)) %>%
 
+                        # Simplify Naming
+                        mutate(.model_desc = gsub("[[:punct:][:digit:][:cntrl:]]", "", .model_desc)) %>%
+                        mutate(.model_desc = gsub(" WITH.*$", "", .model_desc))
+
+                    # Add calibration
+                    ret <- ret %>%
+                        bind_cols(x[c(".type", ".calibration_data")])
+
+                    # Update class
                     class(ret) <- c("mdl_time_tbl", class(ret))
 
-                    # Update Model Descriptions
-                    ret <- ret %>%
-                        dplyr::mutate(.model_desc_user = model_desc_user_vec) %>%
-                        dplyr::mutate(.model_desc_old  = model_desc_modeltime_old_vec) %>%
-                        dplyr::mutate(.model_desc_new  = purrr::map_chr(.model, .f = get_model_description)) %>%
-
-                        # Description Logic
-                        dplyr::mutate(.model_desc = ifelse(
-                            .model_desc_old == .model_desc_new,
-                            # TRUE - Let User Choice Alone
-                            .model_desc_user,
-                            # FALSE - Model Algorithm Parameters Have Changed
-                            # - Reflect Updated Model Params in Description
-                            paste0("UPDATE: ", .model_desc_new)
-                            )
-                        ) %>%
-
-                        # Clean up columns
-                        dplyr::select(-.model_desc_user, -.model_desc_old, -.model_desc_new)
+                    # ret <- ret %>%
+                    #     dplyr::mutate(.model_desc_user = model_desc_user_vec) %>%
+                    #     dplyr::mutate(.model_desc_old  = model_desc_modeltime_old_vec) %>%
+                    #     dplyr::mutate(.model_desc_new  = purrr::map_chr(.model, .f = get_model_description)) %>%
+                    #
+                    #     # Description Logic
+                    #     dplyr::mutate(.model_desc = ifelse(
+                    #         .model_desc_old == .model_desc_new,
+                    #         # TRUE - Let User Choice Alone
+                    #         .model_desc_user,
+                    #         # FALSE - Model Algorithm Parameters Have Changed
+                    #         # - Reflect Updated Model Params in Description
+                    #         paste0("UPDATE: ", .model_desc_new)
+                    #         )
+                    #     ) %>%
+                    #
+                    #     # Clean up columns
+                    #     dplyr::select(-.model_desc_user, -.model_desc_old, -.model_desc_new)
 
                     # Future Forecast ----
+
                     suppressMessages({
                         suppressWarnings({
                             fcast_tbl <- modeltime_forecast(
