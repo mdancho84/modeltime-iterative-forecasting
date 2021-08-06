@@ -77,7 +77,7 @@ modeltime_nested_fit <- function(nested_data, ...,
                             error_tbl <- tibble(
                                 !! id_text := id,
                                 .model_id   = i,
-                                .model_desc = get_model_description(res),
+                                .model_desc = get_model_description(mod),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
 
@@ -455,7 +455,7 @@ modeltime_nested_refit <- function(object, conf_interval = 0.95, control = contr
                             error_tbl <- tibble(
                                 !! id_text := id,
                                 .model_id   = ..model_id,
-                                .model_desc = get_model_description(res),
+                                .model_desc = get_model_description(mod),
                                 .error_desc = ifelse(is.null(err), NA_character_, err)
                             )
 
